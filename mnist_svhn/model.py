@@ -121,8 +121,10 @@ class DecoderA(nn.Module):
 
 
             # define reconstruction loss (log prob of bernoulli dist)
-            p.loss(lambda x_hat, x: -(torch.log(x_hat + EPS) * x +
-                                      torch.log(1 - x_hat + EPS) * (1 - x)).sum(-1),
+            # p.loss(lambda x_hat, x: -(torch.log(x_hat + EPS) * x +
+            #                           torch.log(1 - x_hat + EPS) * (1 - x)).sum(-1),
+            #        images_mean, images, name='images1_' + shared_name)
+            p.loss(lambda x_hat, x: torch.nn.BCEWithLogitsLoss(reduction='none')(x_hat, x).sum(-1).mean(),
                    images_mean, images, name='images1_' + shared_name)
         return p
 
@@ -258,8 +260,10 @@ class DecoderB(nn.Module):
             images = images.view(images.size(0), -1)
 
             # define reconstruction loss (log prob of bernoulli dist)
-            p.loss(lambda x_hat, x: -(torch.log(x_hat + EPS) * x +
-                                      torch.log(1 - x_hat + EPS) * (1 - x)).sum(-1),
+            # p.loss(lambda x_hat, x: -(torch.log(x_hat + EPS) * x +
+            #                           torch.log(1 - x_hat + EPS) * (1 - x)).sum(-1),
+            #        images_mean, images, name='images2_' + shared_name)
+            p.loss(lambda x_hat, x: torch.nn.BCEWithLogitsLoss(reduction='none')(x_hat, x).sum(-1).mean(),
                    images_mean, images, name='images2_' + shared_name)
         return p
 
