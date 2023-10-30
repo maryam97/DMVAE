@@ -18,6 +18,7 @@ from util import unpack_data, apply_poe
 import sys
 sys.path.append('../')
 import probtorch
+import wandb
 # ------------------------------------------------
 # training parameters
 
@@ -63,6 +64,13 @@ if __name__ == "__main__":
 
     parser.add_argument('--ckpt_path', type=str, default='../weights/mnist_svhn_cont',
                         help='save and load path for ckpt')
+    parser.add_argument('--use_subset', default=1.0, type=float)
+    parser.add_argument('--wandb', action='store_true', default=False, help='wandb')
+    parser.add_argument('--wandb_name', type=str, default="CDMVAE", help='wandb name')
+    parser.add_argument("--wandb_key",
+                        type=str,
+                        default="b101bb1b7bc1ac85c436b88c8a809ec31e5aea9f",
+                        help="enter your wandb key if you didn't set on your os")  # Maryam's key
 
     args = parser.parse_args()
 
@@ -128,6 +136,14 @@ decA = DecoderA(args.wseed, zShared_dim=args.n_shared, zPrivate_dim=args.n_priva
 encB = EncoderB(args.wseed, zShared_dim=args.n_shared, zPrivate_dim=args.n_privateB)
 decB = DecoderB(args.wseed, zShared_dim=args.n_shared, zPrivate_dim=args.n_privateB)
 
+# wandb
+if args.wandb:
+    # wandb.login()
+    os.environ['WANDB_API_KEY'] = args.wandb_key
+    os.environ['WANDB_CONFIG_DIR'] = "."  # /home/mehgdam1/CDMVAE/ #for docker
+    run = wandb.init(project=args.wandb_name)
+    wandb.config.update(args)
+
 if CUDA:
     encA.cuda()
     decA.cuda()
@@ -154,11 +170,11 @@ mnist_net, svhn_net = MNIST_Classifier(), SVHN_Classifier()
 if CUDA:
     mnist_net = mnist_net.cuda()
     svhn_net = svhn_net.cuda()
-    mnist_net.load_state_dict(torch.load('../../data/mnist-svhn/mnist_model.pt'))
-    svhn_net.load_state_dict(torch.load('../../data/mnist-svhn/svhn_model.pt'))
-else:
-    mnist_net.load_state_dict(torch.load('../../data/mnist-svhn/mnist_model.pt', map_location='cpu'))
-    svhn_net.load_state_dict(torch.load('../../data/mnist-svhn/svhn_model.pt', map_location='cpu'))
+    # mnist_net.load_state_dict(torch.load('../../data/mnist-svhn/mnist_model.pt'))
+    # svhn_net.load_state_dict(torch.load('../../data/mnist-svhn/svhn_model.pt'))
+# else:
+#     mnist_net.load_state_dict(torch.load('../../data/mnist-svhn/mnist_model.pt', map_location='cpu'))
+#     svhn_net.load_state_dict(torch.load('../../data/mnist-svhn/svhn_model.pt', map_location='cpu'))
 mnist_net.eval()
 svhn_net.eval()
 
@@ -293,8 +309,15 @@ def cross_acc_prior():
              scale=torch.ones((1,args.batch_size, args.n_shared)),
              name='priorSh')
 
-
+    num_batches = len(train_loader) + 1
+    if args.use_subset < 1.0:
+        num_batches_max = max(int(num_batches * args.use_subset), 5)
+        print(f"Using {args.use_subset} of the dataset: {num_batches_max}/{num_batches}")
+    else:
+        num_batches_max = num_batches + 1
+    print('num_batches_max=', num_batches_max)
     for i, dataT in enumerate(test_loader):
+        if i == num_batches_max: break
         data = unpack_data(dataT, device)
         if data[0].size()[0] == args.batch_size:
             N += 1
@@ -393,7 +416,15 @@ def train(encA, decA, encB, decB, optimizer):
     decB.train()
     N = 0
     torch.autograd.set_detect_anomaly(True)
+    num_batches = len(train_loader) + 1
+    if args.use_subset < 1.0:
+        num_batches_max = max(int(num_batches * args.use_subset), 5)
+        print(f"Using {args.use_subset} of the dataset: {num_batches_max}/{num_batches}")
+    else:
+        num_batches_max = num_batches + 1
+    print('num_batches_max=', num_batches_max)
     for i, dataT in enumerate(train_loader):
+        if i == num_batches_max: break
         data = unpack_data(dataT, device)
         # data0, data1 = paired modalA&B
         # data2, data3 = random modalA&B
@@ -493,36 +524,36 @@ def test(encA, decA, encB, decB, epoch):
     return epoch_elbo / N
 
 
-def save_ckpt(e):
-    if not os.path.isdir(args.ckpt_path):
-        os.mkdir(args.ckpt_path)
-    torch.save(encA.state_dict(),
-               '%s/%s-encA_epoch%s.rar' % (args.ckpt_path, MODEL_NAME, e))
-    torch.save(decA.state_dict(),
-               '%s/%s-decA_epoch%s.rar' % (args.ckpt_path, MODEL_NAME, e))
-    torch.save(encB.state_dict(),
-               '%s/%s-encB_epoch%s.rar' % (args.ckpt_path, MODEL_NAME, e))
-    torch.save(decB.state_dict(),
-               '%s/%s-decB_epoch%s.rar' % (args.ckpt_path, MODEL_NAME, e))
+# def save_ckpt(e):
+#     if not os.path.isdir(args.ckpt_path):
+#         os.mkdir(args.ckpt_path)
+#     torch.save(encA.state_dict(),
+#                '%s/%s-encA_epoch%s.rar' % (args.ckpt_path, MODEL_NAME, e))
+#     torch.save(decA.state_dict(),
+#                '%s/%s-decA_epoch%s.rar' % (args.ckpt_path, MODEL_NAME, e))
+#     torch.save(encB.state_dict(),
+#                '%s/%s-encB_epoch%s.rar' % (args.ckpt_path, MODEL_NAME, e))
+#     torch.save(decB.state_dict(),
+#                '%s/%s-decB_epoch%s.rar' % (args.ckpt_path, MODEL_NAME, e))
 
 
 
 
-if args.ckpt_epochs > 0:
-    if CUDA:
-        encA.load_state_dict(torch.load('%s/%s-encA_epoch%s.rar' % (args.ckpt_path, MODEL_NAME, args.ckpt_epochs)))
-        decA.load_state_dict(torch.load('%s/%s-decA_epoch%s.rar' % (args.ckpt_path, MODEL_NAME, args.ckpt_epochs)))
-        encB.load_state_dict(torch.load('%s/%s-encB_epoch%s.rar' % (args.ckpt_path, MODEL_NAME, args.ckpt_epochs)))
-        decB.load_state_dict(torch.load('%s/%s-decB_epoch%s.rar' % (args.ckpt_path, MODEL_NAME, args.ckpt_epochs)))
-    else:
-        encA.load_state_dict(torch.load('%s/%s-encA_epoch%s.rar' % (args.ckpt_path, MODEL_NAME, args.ckpt_epochs),
-                                        map_location=torch.device('cpu')))
-        decA.load_state_dict(torch.load('%s/%s-decA_epoch%s.rar' % (args.ckpt_path, MODEL_NAME, args.ckpt_epochs),
-                                        map_location=torch.device('cpu')))
-        encB.load_state_dict(torch.load('%s/%s-encB_epoch%s.rar' % (args.ckpt_path, MODEL_NAME, args.ckpt_epochs),
-                                        map_location=torch.device('cpu')))
-        decB.load_state_dict(torch.load('%s/%s-decB_epoch%s.rar' % (args.ckpt_path, MODEL_NAME, args.ckpt_epochs),
-                                        map_location=torch.device('cpu')))
+# if args.ckpt_epochs > 0:
+#     if CUDA:
+#         encA.load_state_dict(torch.load('%s/%s-encA_epoch%s.rar' % (args.ckpt_path, MODEL_NAME, args.ckpt_epochs)))
+#         decA.load_state_dict(torch.load('%s/%s-decA_epoch%s.rar' % (args.ckpt_path, MODEL_NAME, args.ckpt_epochs)))
+#         encB.load_state_dict(torch.load('%s/%s-encB_epoch%s.rar' % (args.ckpt_path, MODEL_NAME, args.ckpt_epochs)))
+#         decB.load_state_dict(torch.load('%s/%s-decB_epoch%s.rar' % (args.ckpt_path, MODEL_NAME, args.ckpt_epochs)))
+#     else:
+#         encA.load_state_dict(torch.load('%s/%s-encA_epoch%s.rar' % (args.ckpt_path, MODEL_NAME, args.ckpt_epochs),
+#                                         map_location=torch.device('cpu')))
+#         decA.load_state_dict(torch.load('%s/%s-decA_epoch%s.rar' % (args.ckpt_path, MODEL_NAME, args.ckpt_epochs),
+#                                         map_location=torch.device('cpu')))
+#         encB.load_state_dict(torch.load('%s/%s-encB_epoch%s.rar' % (args.ckpt_path, MODEL_NAME, args.ckpt_epochs),
+#                                         map_location=torch.device('cpu')))
+#         decB.load_state_dict(torch.load('%s/%s-decB_epoch%s.rar' % (args.ckpt_path, MODEL_NAME, args.ckpt_epochs),
+#                                         map_location=torch.device('cpu')))
 
 
 for e in range(args.ckpt_epochs, args.epochs):
@@ -530,11 +561,12 @@ for e in range(args.ckpt_epochs, args.epochs):
     train_elbo, rec_lossA, rec_lossB = train(encA, decA, encB, decB,
                                                    optimizer)
     train_end = time.time()
-    save_ckpt(e + 1)
+    # save_ckpt(e + 1)
 
 
     print('[Epoch %d] Train: ELBO %.4e (%ds)' % (
         e, train_elbo, train_end - train_start))
+cross_acc_prior()
 
 
 
@@ -612,9 +644,9 @@ def shared_latent(data_loader, encA, n_samples):
 
 
 
-if args.ckpt_epochs == args.epochs:
-    shared_latent(test_loader, encA, 400)
-    cross_acc_prior()
+# if args.ckpt_epochs == args.epochs:
+#     shared_latent(test_loader, encA, 400)
+#     cross_acc_prior()
 
-else:
-    save_ckpt(args.epochs)
+# else:
+#     save_ckpt(args.epochs)
