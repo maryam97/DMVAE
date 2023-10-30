@@ -184,6 +184,7 @@ def elbo(q, pA, pB, lamb1=1.0, lamb2=1.0, beta1=(1.0, 1.0, 1.0), beta2=(1.0, 1.0
                                                                latents=['privateA', 'sharedA'], sample_dim=0,
                                                                batch_dim=1,
                                                                beta=beta1, bias=bias)
+    
     reconst_loss_B, kl_B = probtorch.objectives.mws_tcvae.elbo(q, pB, pB['images2_sharedB'],
                                                                latents=['privateB', 'sharedB'],
                                                                sample_dim=0, batch_dim=1,
