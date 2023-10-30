@@ -180,34 +180,34 @@ svhn_net.eval()
 
 def elbo(q, pA, pB, lamb1=1.0, lamb2=1.0, beta1=(1.0, 1.0, 1.0), beta2=(1.0, 1.0, 1.0), bias=1.0):
     # from each of modality
-    reconst_loss_A, kl_A = probtorch.objectives.mws_tcvae.elbo(q, pA, pA['images1_sharedA'],
+    reconst_loss_A, kl_A = probtorch.objectives.mws_tcvae.elbo(q, pA, pA['images1_sharedA'], device=device,
                                                                latents=['privateA', 'sharedA'])
                                                                # , sample_dim=0,
                                                                # batch_dim=1,
                                                                # beta=beta1, bias=bias)
-    reconst_loss_B, kl_B = probtorch.objectives.mws_tcvae.elbo(q, pB, pB['images2_sharedB'],
+    reconst_loss_B, kl_B = probtorch.objectives.mws_tcvae.elbo(q, pB, pB['images2_sharedB'], device=device,
                                                                latents=['privateB', 'sharedB'])
                                                                # ,
                                                                # sample_dim=0, batch_dim=1,
                                                                # beta=beta2, bias=bias)
-    reconst_loss_poeA, kl_poeA = probtorch.objectives.mws_tcvae.elbo(q, pA, pA['images1_poe'],
+    reconst_loss_poeA, kl_poeA = probtorch.objectives.mws_tcvae.elbo(q, pA, pA['images1_poe'], device=device,
                                                                      latents=['privateA', 'poe'])
                                                                      # , sample_dim=0,
                                                                      # batch_dim=1,
                                                                      # beta=beta1, bias=bias)
-    reconst_loss_poeB, kl_poeB = probtorch.objectives.mws_tcvae.elbo(q, pB, pB['images2_poe'],
+    reconst_loss_poeB, kl_poeB = probtorch.objectives.mws_tcvae.elbo(q, pB, pB['images2_poe'], device=device,
                                                                      latents=['privateB', 'poe'])
                                                                      # , sample_dim=0,
                                                                      # batch_dim=1,
                                                                      # beta=beta2, bias=bias)
 
     # # by cross
-    reconst_loss_crA, kl_crA = probtorch.objectives.mws_tcvae.elbo(q, pA, pA['images1_sharedB'],
+    reconst_loss_crA, kl_crA = probtorch.objectives.mws_tcvae.elbo(q, pA, pA['images1_sharedB'], device=device,
                                                                    latents=['privateA', 'sharedB'])
                                                                    # , sample_dim=0,
                                                                    # batch_dim=1,
                                                                    # beta=beta1, bias=bias)
-    reconst_loss_crB, kl_crB = probtorch.objectives.mws_tcvae.elbo(q, pB, pB['images2_sharedA'],
+    reconst_loss_crB, kl_crB = probtorch.objectives.mws_tcvae.elbo(q, pB, pB['images2_sharedA'], device=device,
                                                                    latents=['privateB', 'sharedA'])
                                                                    # , sample_dim=0,
                                                                    # batch_dim=1,
