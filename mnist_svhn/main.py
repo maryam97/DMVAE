@@ -219,9 +219,10 @@ def elbo(q, pA, pB, lamb1=1.0, lamb2=1.0, beta1=(1.0, 1.0, 1.0), beta2=(1.0, 1.0
             (lamb1 * reconst_loss_crA - kl_crA) + (lamb2 * reconst_loss_crB - kl_crB)  + \
     (lamb1 * reconst_loss_poeA - kl_poeA) + (lamb2 * reconst_loss_poeB - kl_poeB)
 
+    # return -loss, [reconst_loss_A, reconst_loss_poeA, reconst_loss_crA], [reconst_loss_B, reconst_loss_poeB,
+    #                                                                       reconst_loss_crB]
     return -loss, [reconst_loss_A, reconst_loss_poeA, reconst_loss_crA], [reconst_loss_B, reconst_loss_poeB,
-                                                                          reconst_loss_crB]
-
+            reconst_loss_crB], [kl_A, kl_poeA, kl_crA], [kl_B, kl_poeB, kl_crB]
 
 
 
@@ -393,17 +394,27 @@ def cross_acc_prior():
 
 
     print('------Reported results------')
-    print('acc A from B:', accA_cr)
-    print('acc B from A:', accB_cr)
-    print('joint:', joint)
+    print('Test acc A from B:', accA_cr)
+    print('Test acc B from A:', accB_cr)
+    print('Test joint:', joint)
 
     print('------own generated acc ------')
-    print('acc A:', accA)
-    print('acc B:', accB)
+    print('Test acc A:', accA)
+    print('Test acc B:', accB)
 
     print('------poe------')
-    print('acc A from poe:', accA_poe)
-    print('acc B from poe:', accB_poe)
+    print('Test acc A from poe:', accA_poe)
+    print('Test acc B from poe:', accB_poe)
+
+    if args.wandb:
+        wandb.log({'Test acc A from B': accA_cr})
+        wandb.log({'Test acc B from A': accB_cr})
+        wandb.log({'Test joint_prior': joint})
+        wandb.log({'Test joint_prior': joint})
+        wandb.log({'Test self acc A': accA})
+        wandb.log({'Test self acc B': accB})
+        wandb.log({'Test acc A from poe': accA_poe})
+        wandb.log({'Test acc B from poe': accB_poe})
 
 
 
@@ -411,6 +422,9 @@ def train(encA, decA, encB, decB, optimizer):
     epoch_elbo = 0.0
     epoch_recA = epoch_rec_poeA = epoch_rec_crA = 0.0
     epoch_recB = epoch_rec_poeB = epoch_rec_crB = 0.0
+    klA, kl_crA, kl_poeA = 0, 0, 0
+    klB, kl_crB, kl_poeB = 0, 0, 0
+    accA, accB = 0, 0
     encA.train()
     encB.train()
     decA.train()
@@ -464,7 +478,7 @@ def train(encA, decA, encB, decB, optimizer):
 
 
             # loss
-            loss, recA, recB = elbo(q, pA, pB, lamb1=args.lambda_text1, lamb2=args.lambda_text2, beta1=BETA1, beta2=BETA2,
+            loss, recA, recB, klsA, klsB = elbo(q, pA, pB, lamb1=args.lambda_text1, lamb2=args.lambda_text2, beta1=BETA1, beta2=BETA2,
                                     bias=BIAS_TRAIN)
 
             loss.backward()
@@ -486,6 +500,46 @@ def train(encA, decA, encB, decB, optimizer):
             epoch_rec_crA += recA[2].item()
             epoch_rec_poeB += recB[1].item()
             epoch_rec_crB += recB[2].item()
+            klA += klsA[0].item()
+            kl_poeA += klsA[1].item()
+            kl_crA += klsA[2].item()
+            klB += klsB[0].item()
+            kl_poeB += klsB[1].item()
+            kl_crB += klsB[2].item()
+
+    print('------own generated acc ------')
+    print('train acc A:', accA / N)
+    print('train acc B:', accB / N)
+    print('epoch_elbo=', epoch_elbo / N)
+    print('epoch_recA_self=', epoch_recA / N)
+    print('epoch_recA_joint=', epoch_rec_poeA / N)
+    print('epoch_recA_cross=', epoch_rec_crA / N)
+    print('epoch_recB_self=', epoch_recB / N)
+    print('epoch_recB_joint=', epoch_rec_poeB / N)
+    print('epoch_recB_cross=', epoch_rec_crB / N)
+    print('epoch_klA=', klA / N)
+    print('epoch_klB=', klB / N)
+    print('epoch_klA_cross=', kl_crA / N)
+    print('epoch_klB_cross=', kl_crB / N)
+    print('epoch_klA_joint=', kl_poeA / N)
+    print('epoch_klB_joint=', kl_poeB / N)
+
+    if args.wandb:
+        wandb.log({'Train_acc A': accA / N})
+        wandb.log({'Train_acc B': accB / N})
+        wandb.log({'Training_loss': epoch_elbo / N})
+        wandb.log({'Train_reconst_A_self': epoch_recA / N})
+        wandb.log({'Train_reconst_B_self': epoch_recB / N})
+        wandb.log({'Train_reconst_A_cross': epoch_rec_crA / N})
+        wandb.log({'Train_reconst_B_cross': epoch_rec_crB / N})
+        wandb.log({'Train_reconst_A_joint': epoch_rec_poeA / N})
+        wandb.log({'Train_reconst_B_joint': epoch_rec_poeB / N})
+        wandb.log({'Train_kl_A_self': klA / N})
+        wandb.log({'Train_kl_B_self': klB / N})
+        wandb.log({'Train_kl_A_cross': kl_crA / N})
+        wandb.log({'Train_kl_B_cross': kl_crB / N})
+        wandb.log({'Train_kl_A_joint': kl_poeA / N})
+        wandb.log({'Train_kl_B_joint': kl_poeB / N})
 
     return epoch_elbo / N, [epoch_recA / N, epoch_rec_poeA / N, epoch_rec_crA / N], [epoch_recB / N,
                                                                                                    epoch_rec_poeB / N,
@@ -557,7 +611,7 @@ def test(encA, decA, encB, decB, epoch):
 #                                         map_location=torch.device('cpu')))
 
 
-for e in range(args.ckpt_epochs, args.epochs):
+for e in range(args.epochs):
     train_start = time.time()
     train_elbo, rec_lossA, rec_lossB = train(encA, decA, encB, decB,
                                                    optimizer)
