@@ -57,7 +57,7 @@ if __name__ == "__main__":
                         help='multipler for TC [default: 10]')
     parser.add_argument('--beta2', type=float, default=1.,
                         help='multipler for TC [default: 10]')
-    parser.add_argument('--seed', type=int, default=0, metavar='N',
+    parser.add_argument('--seed', type=int, default=1, metavar='N',
                         help='random seed for get_paired_data')
     parser.add_argument('--wseed', type=int, default=0, metavar='N',
                         help='random seed for weight')
@@ -86,6 +86,14 @@ if CUDA:
 else:
     device = 'cpu'
     num_workers = 0
+
+# added by Maryam
+# set seeds
+random.seed(args.seed)
+np.random.seed(args.seed)
+torch.manual_seed(args.seed)
+# print('torch seed=', torch.seed())
+print('torch init seed=', torch.initial_seed())
 
 # path parameters
 MODEL_NAME = 'mnist_svhn_cont2-run_id%d-privA%02ddim-privB%02ddim-sh%02ddim-lamb_text1_%s-lamb_text2_%s-beta1%s-beta2%s-seed%s-bs%s-wseed%s' % (
@@ -131,10 +139,10 @@ def cuda_tensors(obj):
             setattr(obj, attr, value.cuda())
 
 
-encA = EncoderA(args.wseed, zShared_dim=args.n_shared, zPrivate_dim=args.n_privateA)
-decA = DecoderA(args.wseed, zShared_dim=args.n_shared, zPrivate_dim=args.n_privateA)
-encB = EncoderB(args.wseed, zShared_dim=args.n_shared, zPrivate_dim=args.n_privateB)
-decB = DecoderB(args.wseed, zShared_dim=args.n_shared, zPrivate_dim=args.n_privateB)
+encA = EncoderA(args.seed, zShared_dim=args.n_shared, zPrivate_dim=args.n_privateA)
+decA = DecoderA(args.seed, zShared_dim=args.n_shared, zPrivate_dim=args.n_privateA)
+encB = EncoderB(args.seed, zShared_dim=args.n_shared, zPrivate_dim=args.n_privateB)
+decB = DecoderB(args.seed, zShared_dim=args.n_shared, zPrivate_dim=args.n_privateB)
 
 # wandb
 if args.wandb:
