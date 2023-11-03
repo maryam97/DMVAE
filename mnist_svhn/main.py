@@ -220,8 +220,8 @@ def elbo(q, pA, pB, lamb1=1.0, lamb2=1.0, beta1=(1.0, 1.0, 1.0), beta2=(1.0, 1.0
     # reconst_loss_crA = torch.tensor(0)
     # reconst_loss_crB = torch.tensor(0)
 
-    reconst_loss_poeA = torch.tensor(0)
-    reconst_loss_poeB = torch.tensor(0)
+    # reconst_loss_poeA = torch.tensor(0)
+    # reconst_loss_poeB = torch.tensor(0)
 
     loss = (lamb1 * reconst_loss_A - kl_A) + (lamb2 * reconst_loss_B - kl_B) + \
             (lamb1 * reconst_loss_crA - kl_crA) + (lamb2 * reconst_loss_crB - kl_crB)  + \
