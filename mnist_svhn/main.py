@@ -126,7 +126,7 @@ data_path = '../../data/mnist-svhn'
 train_mnist_svhn, test_mnist_svhn = getPairedDataset(data_path, 100, cuda=CUDA)
 kwargs = {'num_workers': num_workers, 'pin_memory': True} if CUDA else {}
 train_loader = DataLoader(train_mnist_svhn, batch_size=args.batch_size, shuffle=True, **kwargs)
-test_loader = DataLoader(test_mnist_svhn, batch_size=args.batch_size, shuffle=True, **kwargs)
+test_loader = DataLoader(test_mnist_svhn, batch_size=args.batch_size, shuffle=False, **kwargs)
 
 BIAS_TRAIN = (train_loader.dataset.__len__() - 1) / (args.batch_size - 1)
 BIAS_TEST = (test_loader.dataset.__len__() - 1) / (args.batch_size - 1)
@@ -236,61 +236,61 @@ def elbo(q, pA, pB, lamb1=1.0, lamb2=1.0, beta1=(1.0, 1.0, 1.0), beta2=(1.0, 1.0
 
 
 
-def get_stat():
-    n_samples = 1000
-    random_idx = list(range(len(test_loader) * args.batch_size))
-    random.seed(10)
-    random.shuffle(random_idx)
-
-    min_muPrivateA = []
-    max_muPrivateA = []
-    min_muSharedA = []
-    max_muSharedA = []
-    min_muPrivateB = []
-    max_muPrivateB = []
-    min_muSharedB = []
-    max_muSharedB = []
-
-    for b in range(int(n_samples/100)):
-        fixed_XA = [0] * 100
-        fixed_XB = [0] * 100
-        for i, idx in enumerate(random_idx[b*100: (b+1)*100]):
-            dataT = test_loader.dataset.__getitem__(idx)[0:2]
-            data = unpack_data(dataT, device)
-            fixed_XA[i] = data[0].view(-1, NUM_PIXELS)
-            fixed_XB[i] = data[1]
-            fixed_XA[i] = fixed_XA[i].squeeze(0)
-
-        fixed_XA = torch.stack(fixed_XA, dim=0)
-        fixed_XB = torch.stack(fixed_XB, dim=0)
-
-
-        q = encA(fixed_XA, num_samples=1)
-        q = encB(fixed_XB, num_samples=1, q=q)
-        muPrivateA= q['privateA'].dist.loc.squeeze(0)
-        muSharedA= q['sharedA'].dist.loc.squeeze(0)
-        muPrivateB= q['privateB'].dist.loc.squeeze(0)
-        muSharedB= q['sharedB'].dist.loc.squeeze(0)
-
-        min_muPrivateA.append(muPrivateA.min(dim=0).values)
-        max_muPrivateA.append(muPrivateA.max(dim=0).values)
-        min_muSharedA.append(muSharedA.min(dim=0).values)
-        max_muSharedA.append(muSharedA.max(dim=0).values)
-        min_muPrivateB.append(muPrivateB.min(dim=0).values)
-        max_muPrivateB.append(muPrivateB.max(dim=0).values)
-        min_muSharedB.append(muSharedB.min(dim=0).values)
-        max_muSharedB.append(muSharedB.max(dim=0).values)
-    min_muPrivateA = torch.stack(min_muPrivateA).min(dim=0).values.cpu().detach().numpy()
-    max_muPrivateA = torch.stack(max_muPrivateA).max(dim=0).values.cpu().detach().numpy()
-    min_muSharedA = torch.stack(min_muSharedA).min(dim=0).values.cpu().detach().numpy()
-    max_muSharedA = torch.stack(max_muSharedA).max(dim=0).values.cpu().detach().numpy()
-    min_muPrivateB = torch.stack(min_muPrivateB).min(dim=0).values.cpu().detach().numpy()
-    max_muPrivateB = torch.stack(max_muPrivateB).max(dim=0).values.cpu().detach().numpy()
-    min_muSharedB = torch.stack(min_muSharedB).min(dim=0).values.cpu().detach().numpy()
-    max_muSharedB = torch.stack(max_muSharedB).max(dim=0).values.cpu().detach().numpy()
-
-    return [min_muPrivateA, max_muPrivateA], [min_muSharedA, max_muSharedA], \
-[min_muPrivateB, max_muPrivateB], [min_muSharedB, max_muSharedB]
+# def get_stat():
+#     n_samples = 1000
+#     random_idx = list(range(len(test_loader) * args.batch_size))
+#     random.seed(10)
+#     random.shuffle(random_idx)
+#
+#     min_muPrivateA = []
+#     max_muPrivateA = []
+#     min_muSharedA = []
+#     max_muSharedA = []
+#     min_muPrivateB = []
+#     max_muPrivateB = []
+#     min_muSharedB = []
+#     max_muSharedB = []
+#
+#     for b in range(int(n_samples/100)):
+#         fixed_XA = [0] * 100
+#         fixed_XB = [0] * 100
+#         for i, idx in enumerate(random_idx[b*100: (b+1)*100]):
+#             dataT = test_loader.dataset.__getitem__(idx)[0:2]
+#             data = unpack_data(dataT, device)
+#             fixed_XA[i] = data[0].view(-1, NUM_PIXELS)
+#             fixed_XB[i] = data[1]
+#             fixed_XA[i] = fixed_XA[i].squeeze(0)
+#
+#         fixed_XA = torch.stack(fixed_XA, dim=0)
+#         fixed_XB = torch.stack(fixed_XB, dim=0)
+#
+#
+#         q = encA(fixed_XA, num_samples=1)
+#         q = encB(fixed_XB, num_samples=1, q=q)
+#         muPrivateA= q['privateA'].dist.loc.squeeze(0)
+#         muSharedA= q['sharedA'].dist.loc.squeeze(0)
+#         muPrivateB= q['privateB'].dist.loc.squeeze(0)
+#         muSharedB= q['sharedB'].dist.loc.squeeze(0)
+#
+#         min_muPrivateA.append(muPrivateA.min(dim=0).values)
+#         max_muPrivateA.append(muPrivateA.max(dim=0).values)
+#         min_muSharedA.append(muSharedA.min(dim=0).values)
+#         max_muSharedA.append(muSharedA.max(dim=0).values)
+#         min_muPrivateB.append(muPrivateB.min(dim=0).values)
+#         max_muPrivateB.append(muPrivateB.max(dim=0).values)
+#         min_muSharedB.append(muSharedB.min(dim=0).values)
+#         max_muSharedB.append(muSharedB.max(dim=0).values)
+#     min_muPrivateA = torch.stack(min_muPrivateA).min(dim=0).values.cpu().detach().numpy()
+#     max_muPrivateA = torch.stack(max_muPrivateA).max(dim=0).values.cpu().detach().numpy()
+#     min_muSharedA = torch.stack(min_muSharedA).min(dim=0).values.cpu().detach().numpy()
+#     max_muSharedA = torch.stack(max_muSharedA).max(dim=0).values.cpu().detach().numpy()
+#     min_muPrivateB = torch.stack(min_muPrivateB).min(dim=0).values.cpu().detach().numpy()
+#     max_muPrivateB = torch.stack(max_muPrivateB).max(dim=0).values.cpu().detach().numpy()
+#     min_muSharedB = torch.stack(min_muSharedB).min(dim=0).values.cpu().detach().numpy()
+#     max_muSharedB = torch.stack(max_muSharedB).max(dim=0).values.cpu().detach().numpy()
+#
+#     return [min_muPrivateA, max_muPrivateA], [min_muSharedA, max_muSharedA], \
+# [min_muPrivateB, max_muPrivateB], [min_muSharedB, max_muSharedB]
 
 
 
@@ -499,6 +499,30 @@ def train(encA, decA, encB, decB, optimizer):
             epoch_elbo += loss.item()
             epoch_recA += recA[0].item()
             epoch_recB += recB[0].item()
+
+            labels = dataT[0][1].cpu().detach().numpy()
+            # prior for z_private
+            p = probtorch.Trace()
+            p.normal(loc=torch.zeros((1, args.batch_size, args.n_privateA)).to(device),
+                     scale=torch.ones((1, args.batch_size, args.n_privateA)).to(device),
+                     name='priorA')
+
+            p.normal(loc=torch.zeros((1, args.batch_size, args.n_privateB)).to(device),
+                     scale=torch.ones((1, args.batch_size, args.n_privateB)).to(device),
+                     name='priorB')
+            privA = p['priorA'].dist.sample().to(device)  #### WHY prior???
+            privB = p['priorB'].dist.sample().to(device)
+            sharedA = q['sharedA'].value
+            sharedB = q['sharedB'].value
+
+            reconA = decA.forward2(torch.cat([privA, sharedA], -1)).view(data[0].size()).squeeze(0)
+            reconB = decB.forward2(torch.cat([privB, sharedB], -1)).squeeze(0)
+            pred_labelA = mnist_net(reconA)
+            pred_labelB = svhn_net(reconB)
+            pred_labelA = torch.argmax(pred_labelA, dim=1).cpu().detach().numpy()
+            pred_labelB = torch.argmax(pred_labelB, dim=1).cpu().detach().numpy()
+            accA += (pred_labelA == labels).sum() / args.batch_size
+            accB += (pred_labelB == labels).sum() / args.batch_size
 
             if CUDA:
                 for i in range(2):
