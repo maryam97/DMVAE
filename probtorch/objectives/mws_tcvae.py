@@ -5,7 +5,7 @@ def elbo(q, p, rec, latents=None, sample_dim=None, batch_dim=None, beta=[1.0,1.0
     log_pz, log_qz, log_prod_qzi, log_q_zCx = _get_probability(q, p, latents, sample_dim, batch_dim, bias)
     kl = beta[0] * (log_q_zCx - log_qz) +  beta[1] * (log_qz - log_prod_qzi) + beta[2] * (log_prod_qzi - log_pz)
 
-    return (reconst_loss.mean(), kl.mean())
+    return (reconst_loss, kl.mean())
 
 # import torch
 # def elbo(q, p, rec, device, latents=None):  # , sample_dim=None, batch_dim=None, beta=[1.0,1.0,1.0],
