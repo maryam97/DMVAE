@@ -197,7 +197,7 @@ def elbo(q, pA, pB, lamb1=1.0, lamb2=1.0, beta1=(1.0, 1.0, 1.0), beta2=(1.0, 1.0
                                                                latents=['privateB', 'sharedB'],
                                                                sample_dim=0, batch_dim=1,
                                                                beta=beta2, bias=bias)
-    # reconst_loss_B, kl_B = torch.tensor(0), torch.tensor(0)
+    reconst_loss_A, kl_A = torch.tensor(0), torch.tensor(0)
     reconst_loss_poeA, kl_poeA = probtorch.objectives.mws_tcvae.elbo(q, pA, pA['images1_poe'],
                                                                      latents=['privateA', 'poe'], sample_dim=0,
                                                                      batch_dim=1,
@@ -206,7 +206,7 @@ def elbo(q, pA, pB, lamb1=1.0, lamb2=1.0, beta1=(1.0, 1.0, 1.0), beta2=(1.0, 1.0
                                                                      latents=['privateB', 'poe'], sample_dim=0,
                                                                      batch_dim=1,
                                                                      beta=beta2, bias=bias)
-    # reconst_loss_poeB, kl_poeB = torch.tensor(0), torch.tensor(0)
+    reconst_loss_poeA, kl_poeA = torch.tensor(0), torch.tensor(0)
     # # by cross
     reconst_loss_crA, kl_crA = probtorch.objectives.mws_tcvae.elbo(q, pA, pA['images1_sharedB'],
                                                                    latents=['privateA', 'sharedB'], sample_dim=0,
@@ -216,7 +216,7 @@ def elbo(q, pA, pB, lamb1=1.0, lamb2=1.0, beta1=(1.0, 1.0, 1.0), beta2=(1.0, 1.0
                                                                    latents=['privateB', 'sharedA'], sample_dim=0,
                                                                    batch_dim=1,
                                                                    beta=beta2, bias=bias)
-    # reconst_loss_crB, kl_crB = torch.tensor(0), torch.tensor(0)
+    reconst_loss_crA, kl_crA = torch.tensor(0), torch.tensor(0)
 
 
     # reconst_loss_crA = torch.tensor(0)
