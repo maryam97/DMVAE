@@ -52,10 +52,10 @@ def apply_poe(use_cuda, mu_sharedA, std_sharedA, mu_sharedB=None, std_sharedB=No
 
 
 def kaiming_init(m, seed):
-    # random.seed(seed)
-    # np.random.seed(seed)
-    # torch.manual_seed(seed)
-    # torch.cuda.manual_seed(seed)
+    random.seed(seed)
+    np.random.seed(seed)
+    torch.manual_seed(seed)
+    torch.cuda.manual_seed(seed)
 
     if isinstance(m, (nn.Linear, nn.Conv2d)):
         init.kaiming_uniform_(m.weight)

@@ -89,9 +89,9 @@ else:
 
 # added by Maryam
 # set seeds
-random.seed(args.seed)
-np.random.seed(args.seed)
-torch.manual_seed(args.seed)
+# random.seed(args.seed)
+# np.random.seed(args.seed)
+# torch.manual_seed(args.seed)
 # print('torch seed=', torch.seed())
 print('torch init seed=', torch.initial_seed())
 
