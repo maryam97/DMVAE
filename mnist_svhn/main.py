@@ -502,16 +502,18 @@ def train(encA, decA, encB, decB, optimizer):
 
             labels = dataT[0][1].cpu().detach().numpy()
             # prior for z_private
-            p = probtorch.Trace()
-            p.normal(loc=torch.zeros((1, args.batch_size, args.n_privateA)).to(device),
-                     scale=torch.ones((1, args.batch_size, args.n_privateA)).to(device),
-                     name='priorA')
-
-            p.normal(loc=torch.zeros((1, args.batch_size, args.n_privateB)).to(device),
-                     scale=torch.ones((1, args.batch_size, args.n_privateB)).to(device),
-                     name='priorB')
-            privA = p['priorA'].dist.sample().to(device)  #### WHY prior???
-            privB = p['priorB'].dist.sample().to(device)
+            # p = probtorch.Trace()
+            # p.normal(loc=torch.zeros((1, args.batch_size, args.n_privateA)).to(device),
+            #          scale=torch.ones((1, args.batch_size, args.n_privateA)).to(device),
+            #          name='priorA')
+            #
+            # p.normal(loc=torch.zeros((1, args.batch_size, args.n_privateB)).to(device),
+            #          scale=torch.ones((1, args.batch_size, args.n_privateB)).to(device),
+            #          name='priorB')
+            # privA = p['priorA'].dist.sample().to(device)  #### WHY prior???
+            # privB = p['priorB'].dist.sample().to(device)
+            privA = q['privateA'].value
+            privB = q['privateB'].value
             sharedA = q['sharedA'].value
             sharedB = q['sharedB'].value
 
