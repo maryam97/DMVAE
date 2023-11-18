@@ -178,8 +178,8 @@ mnist_net, svhn_net = MNIST_Classifier(), SVHN_Classifier()
 if CUDA:
     mnist_net = mnist_net.cuda()
     svhn_net = svhn_net.cuda()
-    # mnist_net.load_state_dict(torch.load('../../data/mnist-svhn/mnist_model.pt'))
-    # svhn_net.load_state_dict(torch.load('../../data/mnist-svhn/svhn_model.pt'))
+    mnist_net.load_state_dict(torch.load('../../data/mnist-svhn/mnist_model.pt'))
+    svhn_net.load_state_dict(torch.load('../../data/mnist-svhn/svhn_model.pt'))
 # else:
 #     mnist_net.load_state_dict(torch.load('../../data/mnist-svhn/mnist_model.pt', map_location='cpu'))
 #     svhn_net.load_state_dict(torch.load('../../data/mnist-svhn/svhn_model.pt', map_location='cpu'))
