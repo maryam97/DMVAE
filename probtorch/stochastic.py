@@ -1,4 +1,7 @@
-from collections import OrderedDict, MutableMapping
+# from collections import OrderedDict, MutableMapping
+from collections.abc import MutableMapping
+#from collections import OrderedDic
+from typing import OrderedDict
 from .util import batch_sum, partial_sum, log_mean_exp
 import abc
 from enum import Enum
