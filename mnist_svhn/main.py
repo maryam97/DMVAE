@@ -18,6 +18,7 @@ from util import unpack_data, apply_poe
 import sys
 sys.path.append('../')
 import probtorch
+import wandb
 # ------------------------------------------------
 # training parameters
 
@@ -63,6 +64,13 @@ if __name__ == "__main__":
 
     parser.add_argument('--ckpt_path', type=str, default='../weights/mnist_svhn_cont',
                         help='save and load path for ckpt')
+    parser.add_argument('--use_subset', default=1.0, type=float)
+    parser.add_argument('--wandb', action='store_true', default=False, help='wandb')
+    parser.add_argument('--wandb_name', type=str, default="CDMVAE", help='wandb name')
+    parser.add_argument("--wandb_key",
+                        type=str,
+                        default="b101bb1b7bc1ac85c436b88c8a809ec31e5aea9f",
+                        help="enter your wandb key if you didn't set on your os")  # Maryam's key
 
     args = parser.parse_args()
 
@@ -162,6 +170,15 @@ else:
 mnist_net.eval()
 svhn_net.eval()
 
+# wandb
+if args.wandb:
+    # wandb.login()
+    os.environ['WANDB_API_KEY'] = args.wandb_key
+    os.environ['WANDB_CONFIG_DIR'] = "."  # /home/mehgdam1/CDMVAE/ #for docker
+    run = wandb.init(project=args.wandb_name)
+    wandb.config.update(args)
+
+
 def elbo(q, pA, pB, lamb1=1.0, lamb2=1.0, beta1=(1.0, 1.0, 1.0), beta2=(1.0, 1.0, 1.0), bias=1.0):
     # from each of modality
     reconst_loss_A, kl_A = probtorch.objectives.mws_tcvae.elbo(q, pA, pA['images1_sharedA'],
@@ -195,8 +212,8 @@ def elbo(q, pA, pB, lamb1=1.0, lamb2=1.0, beta1=(1.0, 1.0, 1.0), beta2=(1.0, 1.0
     # reconst_loss_crA = torch.tensor(0)
     # reconst_loss_crB = torch.tensor(0)
 
-    reconst_loss_poeA = torch.tensor(0)
-    reconst_loss_poeB = torch.tensor(0)
+    # reconst_loss_poeA = torch.tensor(0)
+    # reconst_loss_poeB = torch.tensor(0)
 
     loss = (lamb1 * reconst_loss_A - kl_A) + (lamb2 * reconst_loss_B - kl_B) + \
             (lamb1 * reconst_loss_crA - kl_crA) + (lamb2 * reconst_loss_crB - kl_crB)  + \
@@ -293,8 +310,15 @@ def cross_acc_prior():
              scale=torch.ones((1,args.batch_size, args.n_shared)),
              name='priorSh')
 
-
+    num_batches = len(train_loader) + 1
+    if args.use_subset < 1.0:
+        num_batches_max = max(int(num_batches * args.use_subset), 5)
+        print(f"Using {args.use_subset} of the dataset: {num_batches_max}/{num_batches}")
+    else:
+        num_batches_max = num_batches + 1
+    print('num_batches_max=', num_batches_max)
     for i, dataT in enumerate(test_loader):
+        if i == num_batches_max: break
         data = unpack_data(dataT, device)
         if data[0].size()[0] == args.batch_size:
             N += 1
@@ -369,17 +393,26 @@ def cross_acc_prior():
 
 
     print('------Reported results------')
-    print('acc A from B:', accA_cr)
-    print('acc B from A:', accB_cr)
-    print('joint:', joint)
+    print('Test acc A from B:', accA_cr)
+    print('Test acc B from A:', accB_cr)
+    print('Test joint:', joint)
 
     print('------own generated acc ------')
-    print('acc A:', accA)
-    print('acc B:', accB)
+    print('Test acc A:', accA)
+    print('Test acc B:', accB)
 
     print('------poe------')
-    print('acc A from poe:', accA_poe)
-    print('acc B from poe:', accB_poe)
+    print('Test acc A from poe:', accA_poe)
+    print('Test acc B from poe:', accB_poe)
+    if args.wandb:
+        wandb.log({'Test acc A from B': accA_cr})
+        wandb.log({'Test acc B from A': accB_cr})
+        wandb.log({'Test joint_prior': joint})
+        wandb.log({'Test joint_prior': joint})
+        wandb.log({'Test self acc A': accA})
+        wandb.log({'Test self acc B': accB})
+        wandb.log({'Test acc A from poe': accA_poe})
+        wandb.log({'Test acc B from poe': accB_poe})
 
 
 
@@ -393,7 +426,15 @@ def train(encA, decA, encB, decB, optimizer):
     decB.train()
     N = 0
     torch.autograd.set_detect_anomaly(True)
+    num_batches = len(train_loader) + 1
+    if args.use_subset < 1.0:
+        num_batches_max = max(int(num_batches * args.use_subset), 5)
+        print(f"Using {args.use_subset} of the dataset: {num_batches_max}/{num_batches}")
+    else:
+        num_batches_max = num_batches + 1
+    print('num_batches_max=', num_batches_max)
     for i, dataT in enumerate(train_loader):
+        if i == num_batches_max: break
         data = unpack_data(dataT, device)
         # data0, data1 = paired modalA&B
         # data2, data3 = random modalA&B
@@ -493,128 +534,128 @@ def test(encA, decA, encB, decB, epoch):
     return epoch_elbo / N
 
 
-def save_ckpt(e):
-    if not os.path.isdir(args.ckpt_path):
-        os.mkdir(args.ckpt_path)
-    torch.save(encA.state_dict(),
-               '%s/%s-encA_epoch%s.rar' % (args.ckpt_path, MODEL_NAME, e))
-    torch.save(decA.state_dict(),
-               '%s/%s-decA_epoch%s.rar' % (args.ckpt_path, MODEL_NAME, e))
-    torch.save(encB.state_dict(),
-               '%s/%s-encB_epoch%s.rar' % (args.ckpt_path, MODEL_NAME, e))
-    torch.save(decB.state_dict(),
-               '%s/%s-decB_epoch%s.rar' % (args.ckpt_path, MODEL_NAME, e))
+# def save_ckpt(e):
+#     if not os.path.isdir(args.ckpt_path):
+#         os.mkdir(args.ckpt_path)
+#     torch.save(encA.state_dict(),
+#                '%s/%s-encA_epoch%s.rar' % (args.ckpt_path, MODEL_NAME, e))
+#     torch.save(decA.state_dict(),
+#                '%s/%s-decA_epoch%s.rar' % (args.ckpt_path, MODEL_NAME, e))
+#     torch.save(encB.state_dict(),
+#                '%s/%s-encB_epoch%s.rar' % (args.ckpt_path, MODEL_NAME, e))
+#     torch.save(decB.state_dict(),
+#                '%s/%s-decB_epoch%s.rar' % (args.ckpt_path, MODEL_NAME, e))
 
 
 
+#
+# if args.ckpt_epochs > 0:
+#     if CUDA:
+#         encA.load_state_dict(torch.load('%s/%s-encA_epoch%s.rar' % (args.ckpt_path, MODEL_NAME, args.ckpt_epochs)))
+#         decA.load_state_dict(torch.load('%s/%s-decA_epoch%s.rar' % (args.ckpt_path, MODEL_NAME, args.ckpt_epochs)))
+#         encB.load_state_dict(torch.load('%s/%s-encB_epoch%s.rar' % (args.ckpt_path, MODEL_NAME, args.ckpt_epochs)))
+#         decB.load_state_dict(torch.load('%s/%s-decB_epoch%s.rar' % (args.ckpt_path, MODEL_NAME, args.ckpt_epochs)))
+#     else:
+#         encA.load_state_dict(torch.load('%s/%s-encA_epoch%s.rar' % (args.ckpt_path, MODEL_NAME, args.ckpt_epochs),
+#                                         map_location=torch.device('cpu')))
+#         decA.load_state_dict(torch.load('%s/%s-decA_epoch%s.rar' % (args.ckpt_path, MODEL_NAME, args.ckpt_epochs),
+#                                         map_location=torch.device('cpu')))
+#         encB.load_state_dict(torch.load('%s/%s-encB_epoch%s.rar' % (args.ckpt_path, MODEL_NAME, args.ckpt_epochs),
+#                                         map_location=torch.device('cpu')))
+#         decB.load_state_dict(torch.load('%s/%s-decB_epoch%s.rar' % (args.ckpt_path, MODEL_NAME, args.ckpt_epochs),
+#                                         map_location=torch.device('cpu')))
 
-if args.ckpt_epochs > 0:
-    if CUDA:
-        encA.load_state_dict(torch.load('%s/%s-encA_epoch%s.rar' % (args.ckpt_path, MODEL_NAME, args.ckpt_epochs)))
-        decA.load_state_dict(torch.load('%s/%s-decA_epoch%s.rar' % (args.ckpt_path, MODEL_NAME, args.ckpt_epochs)))
-        encB.load_state_dict(torch.load('%s/%s-encB_epoch%s.rar' % (args.ckpt_path, MODEL_NAME, args.ckpt_epochs)))
-        decB.load_state_dict(torch.load('%s/%s-decB_epoch%s.rar' % (args.ckpt_path, MODEL_NAME, args.ckpt_epochs)))
-    else:
-        encA.load_state_dict(torch.load('%s/%s-encA_epoch%s.rar' % (args.ckpt_path, MODEL_NAME, args.ckpt_epochs),
-                                        map_location=torch.device('cpu')))
-        decA.load_state_dict(torch.load('%s/%s-decA_epoch%s.rar' % (args.ckpt_path, MODEL_NAME, args.ckpt_epochs),
-                                        map_location=torch.device('cpu')))
-        encB.load_state_dict(torch.load('%s/%s-encB_epoch%s.rar' % (args.ckpt_path, MODEL_NAME, args.ckpt_epochs),
-                                        map_location=torch.device('cpu')))
-        decB.load_state_dict(torch.load('%s/%s-decB_epoch%s.rar' % (args.ckpt_path, MODEL_NAME, args.ckpt_epochs),
-                                        map_location=torch.device('cpu')))
 
-
-for e in range(args.ckpt_epochs, args.epochs):
+for e in range(args.epochs):
     train_start = time.time()
     train_elbo, rec_lossA, rec_lossB = train(encA, decA, encB, decB,
                                                    optimizer)
     train_end = time.time()
-    save_ckpt(e + 1)
+    # save_ckpt(e + 1)
 
 
     print('[Epoch %d] Train: ELBO %.4e (%ds)' % (
         e, train_elbo, train_end - train_start))
 
-
-
-
-
-def shared_latent(data_loader, encA, n_samples):
-    torch.manual_seed(1340)
-    random.seed(1340)
-    fixed_idxs = random.sample(range(len(data_loader.dataset)), n_samples)
-    fixed_XA = [0] * n_samples
-    fixed_XB = [0] * n_samples
-    labels = [0] * n_samples
-
-    for i, idx in enumerate(fixed_idxs):
-        dataT = data_loader.dataset[idx]
-        data = unpack_data(dataT, device)
-        labels[i] = dataT[0][1]
-        fixed_XA[i] = data[0].view(-1, NUM_PIXELS).squeeze(0)
-        fixed_XB[i] = data[1]
-
-    fixed_XA = torch.stack(fixed_XA, dim=0)
-    fixed_XB = torch.stack(fixed_XB, dim=0)
-    labels = np.array(labels)
-
-    q = encA(fixed_XA, num_samples=1)
-    q = encB(fixed_XB, num_samples=NUM_SAMPLES, q=q)
-
-    ## poe ##
-    sharedPoE, _ = apply_poe(CUDA, q['sharedA'].dist.loc, q['sharedA'].dist.scale,
-                                               q['sharedB'].dist.loc, q['sharedB'].dist.scale)
-
-
-
-    ######################## shared digit id ########################
-    sharedA =  q['sharedA'].dist.loc
-    sharedB =  q['sharedB'].dist.loc
-    shared = torch.cat([sharedA, sharedB, sharedPoE], dim=1).detach().numpy().squeeze(0)
-
-    # total tsne
-    tsne = TSNE(n_components=2, random_state=0)
-    X_r2 = tsne.fit_transform(shared)
-
-    target_names = np.unique(labels)
-    colors = np.array(
-        ['burlywood', 'turquoise', 'darkorange', 'blue', 'green', 'gray', 'red', 'black', 'purple', 'pink'])
-
-    fig = plt.figure()
-    fig.tight_layout()
-    for color, i, target_name in zip(colors, target_names, target_names):
-        plt.scatter(X_r2[:n_samples][labels == i, 0], X_r2[:n_samples][labels == i, 1], alpha=0.7, color=color, marker='+', s=50, linewidths=1, label=target_name)
-        plt.scatter(X_r2[n_samples:2*n_samples][labels == i, 0], X_r2[n_samples:2*n_samples][labels == i, 1], alpha=0.6, color=color,
-                    s=7, linewidths=1, label=target_name)
-    plt.show()
-
-    ######################## all images of B ########################
-    tsne = TSNE(n_components=2, random_state=0)
-    emb = tsne.fit_transform(q['privateB'].dist.loc.detach().numpy().squeeze(0))
-
-    fig, ax = plt.subplots(**{'figsize': (4, 3)})
-
-    ax.scatter(emb[:,0], emb[:,1])
-    from matplotlib.offsetbox import OffsetImage, AnnotationBbox
-    for x0, y0, img in zip(emb[:,0], emb[:,1], fixed_XB):
-        img = img.detach().numpy().transpose((1,2,0))
-        imagebox = OffsetImage(img, zoom=0.2)
-        imagebox.image.axes = ax
-        ab = AnnotationBbox(imagebox, (x0, y0), frameon=False)
-        ax.add_artist(ab)
-    plt.axis('off')
-    plt.tight_layout()
-    plt.show()
-
-
-
-
-
-
-if args.ckpt_epochs == args.epochs:
-    shared_latent(test_loader, encA, 400)
-    cross_acc_prior()
-
-else:
-    save_ckpt(args.epochs)
+cross_acc_prior()
+#
+#
+#
+# def shared_latent(data_loader, encA, n_samples):
+#     torch.manual_seed(1340)
+#     random.seed(1340)
+#     fixed_idxs = random.sample(range(len(data_loader.dataset)), n_samples)
+#     fixed_XA = [0] * n_samples
+#     fixed_XB = [0] * n_samples
+#     labels = [0] * n_samples
+#
+#     for i, idx in enumerate(fixed_idxs):
+#         dataT = data_loader.dataset[idx]
+#         data = unpack_data(dataT, device)
+#         labels[i] = dataT[0][1]
+#         fixed_XA[i] = data[0].view(-1, NUM_PIXELS).squeeze(0)
+#         fixed_XB[i] = data[1]
+#
+#     fixed_XA = torch.stack(fixed_XA, dim=0)
+#     fixed_XB = torch.stack(fixed_XB, dim=0)
+#     labels = np.array(labels)
+#
+#     q = encA(fixed_XA, num_samples=1)
+#     q = encB(fixed_XB, num_samples=NUM_SAMPLES, q=q)
+#
+#     ## poe ##
+#     sharedPoE, _ = apply_poe(CUDA, q['sharedA'].dist.loc, q['sharedA'].dist.scale,
+#                                                q['sharedB'].dist.loc, q['sharedB'].dist.scale)
+#
+#
+#
+#     ######################## shared digit id ########################
+#     sharedA =  q['sharedA'].dist.loc
+#     sharedB =  q['sharedB'].dist.loc
+#     shared = torch.cat([sharedA, sharedB, sharedPoE], dim=1).detach().numpy().squeeze(0)
+#
+#     # total tsne
+#     tsne = TSNE(n_components=2, random_state=0)
+#     X_r2 = tsne.fit_transform(shared)
+#
+#     target_names = np.unique(labels)
+#     colors = np.array(
+#         ['burlywood', 'turquoise', 'darkorange', 'blue', 'green', 'gray', 'red', 'black', 'purple', 'pink'])
+#
+#     fig = plt.figure()
+#     fig.tight_layout()
+#     for color, i, target_name in zip(colors, target_names, target_names):
+#         plt.scatter(X_r2[:n_samples][labels == i, 0], X_r2[:n_samples][labels == i, 1], alpha=0.7, color=color, marker='+', s=50, linewidths=1, label=target_name)
+#         plt.scatter(X_r2[n_samples:2*n_samples][labels == i, 0], X_r2[n_samples:2*n_samples][labels == i, 1], alpha=0.6, color=color,
+#                     s=7, linewidths=1, label=target_name)
+#     plt.show()
+#
+#     ######################## all images of B ########################
+#     tsne = TSNE(n_components=2, random_state=0)
+#     emb = tsne.fit_transform(q['privateB'].dist.loc.detach().numpy().squeeze(0))
+#
+#     fig, ax = plt.subplots(**{'figsize': (4, 3)})
+#
+#     ax.scatter(emb[:,0], emb[:,1])
+#     from matplotlib.offsetbox import OffsetImage, AnnotationBbox
+#     for x0, y0, img in zip(emb[:,0], emb[:,1], fixed_XB):
+#         img = img.detach().numpy().transpose((1,2,0))
+#         imagebox = OffsetImage(img, zoom=0.2)
+#         imagebox.image.axes = ax
+#         ab = AnnotationBbox(imagebox, (x0, y0), frameon=False)
+#         ax.add_artist(ab)
+#     plt.axis('off')
+#     plt.tight_layout()
+#     plt.show()
+#
+#
+#
+#
+#
+#
+# if args.ckpt_epochs == args.epochs:
+#     shared_latent(test_loader, encA, 400)
+#     cross_acc_prior()
+#
+# else:
+#     save_ckpt(args.epochs)
