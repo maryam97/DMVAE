@@ -417,6 +417,7 @@ def cross_acc_prior():
 
 
 def train(encA, decA, encB, decB, optimizer):
+    time_train_start = time.time()
     epoch_elbo = 0.0
     epoch_recA = epoch_rec_poeA = epoch_rec_crA = 0.0
     epoch_recB = epoch_rec_poeB = epoch_rec_crB = 0.0
@@ -433,12 +434,19 @@ def train(encA, decA, encB, decB, optimizer):
     else:
         num_batches_max = num_batches + 1
     print('num_batches_max=', num_batches_max)
+    time_aftersub = time.time()
+    print(f'start train --> after data subset selection = {(time_aftersub-time_train_start)/60:0,.4f}')
+
     for i, dataT in enumerate(train_loader):
         if i == num_batches_max: break
+        time_load_data = time.time()
         data = unpack_data(dataT, device)
+        time_fin_load = time.time()
+        print(f'load data batch {i} time = {(time_fin_load - time_load_data)/60:0,.4f}')
         # data0, data1 = paired modalA&B
         # data2, data3 = random modalA&B
         if data[0].size()[0] == args.batch_size:
+            time_start_feed = time.time()
             N += 1
             images1 = data[0]
             images2 = data[1]
@@ -470,13 +478,16 @@ def train(encA, decA, encB, decB, optimizer):
             #           num_samples=NUM_SAMPLES)
             # pB = decB(images2, {'sharedA': q['sharedA'], 'sharedB': q['sharedB']}, q=q,
             #           num_samples=NUM_SAMPLES)
-
-
+            time_fin_feed = time.time()
+            print(f'feed data into model time = {(time_fin_feed-time_start_feed)/60:0,.4f}')
+            time_start_loss = time.time()
             # loss
             loss, recA, recB = elbo(q, pA, pB, lamb1=args.lambda_text1, lamb2=args.lambda_text2, beta1=BETA1, beta2=BETA2,
                                     bias=BIAS_TRAIN)
 
             loss.backward()
+            time_fin_loss = time.time()
+            print(f'compute and update loss time = {(time_fin_loss - time_start_loss)/60:0,.4f}')
             optimizer.step()
             if CUDA:
                 loss = loss.cpu()
@@ -574,8 +585,8 @@ for e in range(args.epochs):
     # save_ckpt(e + 1)
 
 
-    print('[Epoch %d] Train: ELBO %.4e (%ds)' % (
-        e, train_elbo, train_end - train_start))
+    print('[Epoch %d] Train: ELBO %.4e (%.4e mins)' % (
+        e, train_elbo, (train_end - train_start)/60))
 
 cross_acc_prior()
 #
