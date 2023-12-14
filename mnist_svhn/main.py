@@ -346,9 +346,9 @@ def save_image_grid(x, name, recon_path, nrow=8, normalize=False):
 @torch.no_grad()
 def reconstruct(reconA, reconB, name=''):
     sample_size = 32
-    recon_path = '../img/'
+    recon_path = f'../subset={args.use_subset}_ep={args.epochs}/img/'
     if not os.path.isdir(recon_path):
-        os.mkdir(recon_path)
+        os.makedirs(recon_path)
     gridA = save_image_grid(x=reconA[:sample_size], name=f"{name}_A", recon_path=recon_path)
     gridB = save_image_grid(x=reconB[:sample_size], name=f"{name}_B", recon_path=recon_path)
 
