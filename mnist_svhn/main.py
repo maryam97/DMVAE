@@ -13,7 +13,7 @@ from datasets import getPairedDataset
 from model import EncoderA, EncoderB, DecoderA, DecoderB
 from classifier import MNIST_Classifier, SVHN_Classifier
 from util import unpack_data, apply_poe
-
+from torchvision.utils import make_grid, save_image
 
 import sys
 sys.path.append('../')
@@ -71,6 +71,7 @@ if __name__ == "__main__":
                         type=str,
                         default="b101bb1b7bc1ac85c436b88c8a809ec31e5aea9f",
                         help="enter your wandb key if you didn't set on your os")  # Maryam's key
+    parser.add_argument('--recon', action='store_true', default=False, help='reconstruct images')
 
     args = parser.parse_args()
 
@@ -336,7 +337,24 @@ def get_stat():
 [min_muPrivateB, max_muPrivateB], [min_muSharedB, max_muSharedB]
 
 
+def save_image_grid(x, name, recon_path, nrow=8, normalize=False):
+    grid = make_grid(x, nrow=nrow, normalize=normalize)
+    save_image(grid, os.path.join(recon_path, f'{name}.png'))
+    return grid
 
+
+@torch.no_grad()
+def reconstruct(reconA, reconB, name=''):
+    sample_size = 32
+    recon_path = '../img/'
+    if not os.path.isdir(recon_path):
+        os.mkdir(recon_path)
+    gridA = save_image_grid(x=reconA[:sample_size], name=f"{name}_A", recon_path=recon_path)
+    gridB = save_image_grid(x=reconB[:sample_size], name=f"{name}_B", recon_path=recon_path)
+
+    if args.wandb:
+        wandb.log({f"{name}_A": gridA})
+        wandb.log({f"{name}_B": gridB})
 
 
 def cross_acc_prior():
@@ -443,6 +461,11 @@ def cross_acc_prior():
     accA_poe = np.round(accA_poe / N, 4)
     accB_poe = np.round(accB_poe / N, 4)
 
+    if args.recon:
+        print('Saving the last batch reconstructions...')
+        reconstruct(reconA=data[0], reconB=data[1], name='true_image')
+        reconstruct(reconA=reconA, reconB=reconB, name='self_recons')
+        reconstruct(reconA=reconA_cross, reconB=reconB_cross, name='cross_recons')
 
     print('------Reported results------')
     print('Test acc A from B:', accA_cr)
@@ -469,10 +492,13 @@ def cross_acc_prior():
 
 
 def train(encA, decA, encB, decB, optimizer):
-    time_train_start = time.time()
+    # time_train_start = time.time()
     epoch_elbo = 0.0
+    accA = accB = 0.0
     epoch_recA = epoch_rec_poeA = epoch_rec_crA = 0.0
     epoch_recB = epoch_rec_poeB = epoch_rec_crB = 0.0
+    klA, kl_crA, kl_poeA = 0, 0, 0
+    klB, kl_crB, kl_poeB = 0, 0, 0
     encA.train()
     encB.train()
     decA.train()
@@ -486,19 +512,19 @@ def train(encA, decA, encB, decB, optimizer):
     else:
         num_batches_max = num_batches + 1
     print('num_batches_max=', num_batches_max)
-    time_aftersub = time.time()
-    print(f'start train --> after data subset selection = {(time_aftersub-time_train_start)/60:0,.4f}')
+    # time_aftersub = time.time()
+    # print(f'start train --> after data subset selection = {(time_aftersub-time_train_start)/60:0,.4f}')
 
     for i, dataT in enumerate(train_loader):
         if i == num_batches_max: break
-        time_load_data = time.time()
+        # time_load_data = time.time()
         data = unpack_data(dataT, device)
-        time_fin_load = time.time()
-        print(f'load data batch {i} time = {(time_fin_load - time_load_data)/60:0,.4f}')
+        # time_fin_load = time.time()
+        # print(f'load data batch {i} time = {(time_fin_load - time_load_data)/60:0,.4f}')
         # data0, data1 = paired modalA&B
         # data2, data3 = random modalA&B
         if data[0].size()[0] == args.batch_size:
-            time_start_feed = time.time()
+            # time_start_feed = time.time()
             N += 1
             images1 = data[0]
             images2 = data[1]
@@ -530,17 +556,17 @@ def train(encA, decA, encB, decB, optimizer):
             #           num_samples=NUM_SAMPLES)
             # pB = decB(images2, {'sharedA': q['sharedA'], 'sharedB': q['sharedB']}, q=q,
             #           num_samples=NUM_SAMPLES)
-            time_fin_feed = time.time()
-            print(f'feed data into model time = {(time_fin_feed-time_start_feed)/60:0,.4f}')
-            time_start_loss = time.time()
+            # time_fin_feed = time.time()
+            # print(f'feed data into model time = {(time_fin_feed-time_start_feed)/60:0,.4f}')
+            # time_start_loss = time.time()
             # loss
             # loss, recA, recB = elbo(q, pA, pB, lamb1=args.lambda_text1, lamb2=args.lambda_text2, beta1=BETA1, beta2=BETA2,
             #                         bias=BIAS_TRAIN)
             loss, recA, recB, klsA, klsB = elbo(q, pA, pB, lamb1=args.lambda_text1, lamb2=args.lambda_text2)
 
             loss.backward()
-            time_fin_loss = time.time()
-            print(f'compute and update loss time = {(time_fin_loss - time_start_loss)/60:0,.4f}')
+            # time_fin_loss = time.time()
+            # print(f'compute and update loss time = {(time_fin_loss - time_start_loss)/60:0,.4f}')
             optimizer.step()
             if CUDA:
                 loss = loss.cpu()
@@ -550,6 +576,35 @@ def train(encA, decA, encB, decB, optimizer):
             epoch_elbo += loss.item()
             epoch_recA += recA[0].item()
             epoch_recB += recB[0].item()
+            # compute train self accs
+            # time_start_acc = time.time()
+            labels = dataT[0][1].cpu().detach().numpy()
+            # prior for z_private
+            p = probtorch.Trace()
+            p.normal(loc=torch.zeros((1, args.batch_size, args.n_privateA)).to(device),
+                     scale=torch.ones((1, args.batch_size, args.n_privateA)).to(device),
+                     name='priorA')
+
+            p.normal(loc=torch.zeros((1, args.batch_size, args.n_privateB)).to(device),
+                     scale=torch.ones((1, args.batch_size, args.n_privateB)).to(device),
+                     name='priorB')
+            privA = q['privateA'].value  #p['priorA'].dist.sample().to(device)  #### WHY prior???
+            privB = q['privateB'].value  #p['priorB'].dist.sample().to(device)
+            sharedA = q['sharedA'].value
+            sharedB = q['sharedB'].value
+
+            reconA = decA.forward2(torch.cat([privA, sharedA], -1)).view(data[0].size()).squeeze(0)
+            # print('reconA.size()', reconA.size())
+            reconB = decB.forward2(torch.cat([privB, sharedB], -1)).squeeze(0)
+            # print('reconB.size()', reconB.size())
+            pred_labelA = mnist_net(reconA)
+            pred_labelB = svhn_net(reconB)
+            pred_labelA = torch.argmax(pred_labelA, dim=1).cpu().detach().numpy()
+            pred_labelB = torch.argmax(pred_labelB, dim=1).cpu().detach().numpy()
+            accA += (pred_labelA == labels).sum() / args.batch_size
+            accB += (pred_labelB == labels).sum() / args.batch_size
+            # time_fin_acc = time.time()
+            # print(f'compute and update loss time = {(time_fin_acc - time_start_acc)/60:0,.4f}')
 
             if CUDA:
                 for i in range(2):
@@ -559,6 +614,47 @@ def train(encA, decA, encB, decB, optimizer):
             epoch_rec_crA += recA[2].item()
             epoch_rec_poeB += recB[1].item()
             epoch_rec_crB += recB[2].item()
+
+            klA += klsA[0].item()
+            kl_poeA += klsA[1].item()
+            kl_crA += klsA[2].item()
+            klB += klsB[0].item()
+            kl_poeB += klsB[1].item()
+            kl_crB += klsB[2].item()
+
+    print('------own generated acc ------')
+    print('train acc A:', accA / N)
+    print('train acc B:', accB / N)
+    print('epoch_elbo=', epoch_elbo / N)
+    print('epoch_recA_self=', epoch_recA / N)
+    print('epoch_recA_joint=', epoch_rec_poeA / N)
+    print('epoch_recA_cross=', epoch_rec_crA / N)
+    print('epoch_recB_self=', epoch_recB / N)
+    print('epoch_recB_joint=', epoch_rec_poeB / N)
+    print('epoch_recB_cross=', epoch_rec_crB / N)
+    print('epoch_klA=', klA / N)
+    print('epoch_klB=', klB / N)
+    print('epoch_klA_cross=', kl_crA / N)
+    print('epoch_klB_cross=', kl_crB / N)
+    print('epoch_klA_joint=', kl_poeA / N)
+    print('epoch_klB_joint=', kl_poeB / N)
+
+    if args.wandb:
+        wandb.log({'Train_acc A': accA / N})
+        wandb.log({'Train_acc B': accB / N})
+        wandb.log({'Training_loss': epoch_elbo / N})
+        wandb.log({'Train_reconst_A_self': epoch_recA / N})
+        wandb.log({'Train_reconst_B_self': epoch_recB / N})
+        wandb.log({'Train_reconst_A_cross': epoch_rec_crA / N})
+        wandb.log({'Train_reconst_B_cross': epoch_rec_crB / N})
+        wandb.log({'Train_reconst_A_joint': epoch_rec_poeA / N})
+        wandb.log({'Train_reconst_B_joint': epoch_rec_poeB / N})
+        wandb.log({'Train_kl_A_self': klA / N})
+        wandb.log({'Train_kl_B_self': klB / N})
+        wandb.log({'Train_kl_A_cross': kl_crA / N})
+        wandb.log({'Train_kl_B_cross': kl_crB / N})
+        wandb.log({'Train_kl_A_joint': kl_poeA / N})
+        wandb.log({'Train_kl_B_joint': kl_poeB / N})
 
     return epoch_elbo / N, [epoch_recA / N, epoch_rec_poeA / N, epoch_rec_crA / N], [epoch_recB / N,
                                                                                                    epoch_rec_poeB / N,
@@ -642,6 +738,7 @@ for e in range(args.epochs):
         e, train_elbo, (train_end - train_start)/60))
 
 cross_acc_prior()
+
 #
 #
 #
