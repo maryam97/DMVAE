@@ -150,14 +150,14 @@ if CUDA:
 optimizer = torch.optim.Adam(
     list(encB.parameters()) + list(decB.parameters()) + list(encA.parameters()) + list(decA.parameters()),
     lr=args.lr)
-
-mnist_test_loader = torch.utils.data.DataLoader(
-    MNIST('../../data/mnist', train=False, download=True, transform=transforms.ToTensor()),
-    batch_size=args.batch_size, shuffle=False)
-
-svhn_test_loader = torch.utils.data.DataLoader(
-    SVHN('../../data/svhn', split='test', download=True, transform=transforms.ToTensor()),
-    batch_size=args.batch_size, shuffle=False)
+#
+# mnist_test_loader = torch.utils.data.DataLoader(
+#     MNIST('../../data/mnist', train=False, download=True, transform=transforms.ToTensor()),
+#     batch_size=args.batch_size, shuffle=False)
+#
+# svhn_test_loader = torch.utils.data.DataLoader(
+#     SVHN('../../data/svhn', split='test', download=True, transform=transforms.ToTensor()),
+#     batch_size=args.batch_size, shuffle=False)
 
 mnist_net, svhn_net = MNIST_Classifier(), SVHN_Classifier()
 if CUDA:
@@ -340,7 +340,8 @@ def get_stat():
 def save_image_grid(x, name, recon_path, nrow=8, normalize=False):
     grid = make_grid(x, nrow=nrow, normalize=normalize)
     save_image(grid, os.path.join(recon_path, f'{name}.png'))
-    return grid
+    if args.wandb:
+        wandb.log({f"{name}_A": [wandb.Image(grid, caption=name)]})
 
 
 @torch.no_grad()
@@ -349,12 +350,8 @@ def reconstruct(reconA, reconB, name=''):
     recon_path = f'../results/subset={args.use_subset}_ep={args.epochs}/img/'
     if not os.path.isdir(recon_path):
         os.makedirs(recon_path)
-    gridA = save_image_grid(x=reconA[:sample_size], name=f"{name}_A", recon_path=recon_path)
-    gridB = save_image_grid(x=reconB[:sample_size], name=f"{name}_B", recon_path=recon_path)
-
-    if args.wandb:
-        wandb.log({f"{name}_A": gridA})
-        wandb.log({f"{name}_B": gridB})
+    save_image_grid(x=reconA[:sample_size], name=f"{name}_A", recon_path=recon_path)
+    save_image_grid(x=reconB[:sample_size], name=f"{name}_B", recon_path=recon_path)
 
 
 def cross_acc_prior():
